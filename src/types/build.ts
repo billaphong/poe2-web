@@ -70,6 +70,7 @@ export interface TreePositionNode {
   y: number;
   type: "keystone" | "notable" | "normal" | "mastery";
   name: string;
+  stats: string[];
   allocated: boolean;
 }
 
