@@ -56,10 +56,21 @@ export interface ItemData {
   id?: number;
   name: string;
   base?: string;
+  baseName?: string;
   slot?: string;
   rarity?: string;
+  raw?: string;
   affixes?: string[];
   requirements?: Record<string, number>;
+}
+
+export interface TreePositionNode {
+  id: number;
+  x: number;
+  y: number;
+  type: "keystone" | "notable" | "normal" | "mastery";
+  name: string;
+  allocated: boolean;
 }
 
 export interface LoadBuildResponse {
@@ -72,6 +83,7 @@ export interface BuildData {
   info: BuildInfo;
   stats: BuildStats;
   tree: TreeData;
+  treePositions: TreePositionNode[];
   skills: SkillGroup[];
   items: ItemData[];
 }

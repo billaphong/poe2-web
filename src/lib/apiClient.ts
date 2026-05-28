@@ -5,6 +5,7 @@ import type {
   SkillGroup,
   ItemData,
   LoadBuildResponse,
+  TreePositionNode,
 } from "@/types/build";
 
 const API_BASE =
@@ -81,12 +82,18 @@ export async function fetchItems(): Promise<ItemData[]> {
   return data.items;
 }
 
+export async function fetchTreePositions(): Promise<TreePositionNode[]> {
+  const data = await apiFetch<{ ok: boolean; nodes: TreePositionNode[] }>("/api/tree-positions");
+  return data.nodes;
+}
+
 export async function fetchAllBuildData() {
   // Sequential — the Lua engine is single-threaded and rejects concurrent requests
   const info = await fetchBuildInfo();
   const stats = await fetchStats();
   const tree = await fetchTree();
+  const treePositions = await fetchTreePositions();
   const skills = await fetchSkills();
   const items = await fetchItems();
-  return { info, stats, tree, skills, items };
+  return { info, stats, tree, treePositions, skills, items };
 }

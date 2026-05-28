@@ -70,6 +70,7 @@ export default function HomePage() {
           <div className="flex-shrink-0">
             <PassiveTree
               tree={buildData?.tree ?? null}
+              positions={buildData?.treePositions ?? null}
               width={600}
               height={600}
             />
