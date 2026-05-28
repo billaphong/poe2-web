@@ -82,12 +82,11 @@ export async function fetchItems(): Promise<ItemData[]> {
 }
 
 export async function fetchAllBuildData() {
-  const [info, stats, tree, skills, items] = await Promise.all([
-    fetchBuildInfo(),
-    fetchStats(),
-    fetchTree(),
-    fetchSkills(),
-    fetchItems(),
-  ]);
+  // Sequential — the Lua engine is single-threaded and rejects concurrent requests
+  const info = await fetchBuildInfo();
+  const stats = await fetchStats();
+  const tree = await fetchTree();
+  const skills = await fetchSkills();
+  const items = await fetchItems();
   return { info, stats, tree, skills, items };
 }
