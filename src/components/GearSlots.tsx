@@ -92,14 +92,6 @@ export default function GearSlots({ items }: GearSlotsProps) {
         <SlotCard slot="Boots" item={slotMap.get("Boots")} />
       </div>
 
-      {items &&
-        items
-          .filter((item) => item.slot && !SLOT_ORDER.includes(item.slot))
-          .map((item) => (
-            <div key={item.slot ?? item.name} className="text-xs text-gray-400">
-              {item.slot}: {item.name}
-            </div>
-          ))}
     </div>
   );
 }

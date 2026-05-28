@@ -33,11 +33,13 @@ export interface TreeNode {
 }
 
 export interface TreeData {
-  nodes: TreeNode[];
-  minX?: number;
-  maxX?: number;
-  minY?: number;
-  maxY?: number;
+  // API returns allocated node IDs; full coordinates require extended API
+  nodes: number[] | TreeNode[];
+  classId?: number;
+  ascendClassId?: number;
+  secondaryAscendClassId?: number;
+  treeVersion?: string;
+  masteryEffects?: unknown[];
 }
 
 export interface SkillGem {
