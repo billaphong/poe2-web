@@ -153,7 +153,7 @@ export default function HomePage() {
             <GearSlots items={buildData?.items ?? null} />
           </div>
 
-          {/* Passive tree */}
+          {/* Passive tree — ring summary inline, full interactive on expand */}
           <div style={{
             padding: "16px 20px",
             borderBottom: "1px solid var(--bg-divider)",
@@ -167,8 +167,6 @@ export default function HomePage() {
             <PassiveTree
               tree={buildData?.tree ?? null}
               positions={buildData?.treePositions ?? null}
-              width={880}
-              height={520}
             />
           </div>
 

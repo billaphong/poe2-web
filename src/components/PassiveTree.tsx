@@ -3,101 +3,75 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import type { TreeData, TreePositionNode } from "@/types/build";
 
+// ── Types ──────────────────────────────────────────────────────
 interface PassiveTreeProps {
   tree: TreeData | null;
   positions: TreePositionNode[] | null;
-  width?: number;
-  height?: number;
 }
 
+// ── Constants ──────────────────────────────────────────────────
 const CLASS_NAMES: Record<number, string> = {
   0: "Witch", 1: "Ranger", 2: "Duelist",
   3: "Marauder", 4: "Shadow", 5: "Templar", 6: "Scion",
 };
 
 const NODE_COLORS = {
-  keystone: { bg: "oklch(0.14 0.05 60)",   dot: "#f59e0b", glow: "#f59e0b55" },
-  notable:  { bg: "oklch(0.14 0.04 260)",  dot: "#a78bfa", glow: "#a78bfa44" },
-  mastery:  { bg: "oklch(0.14 0.04 220)",  dot: "#60a5fa", glow: "#60a5fa33" },
-  normal:   { bg: "oklch(0.22 0.005 60)",  dot: "#d97706", glow: "" },
-  unalloc:  {
-    keystone: "#78350f",
-    notable:  "#2e1065",
-    mastery:  "#1e3a5f",
-    normal:   "#1f2937",
-  },
+  keystone: { dot: "#f59e0b", glow: "#f59e0b55", dim: "#78350f" },
+  notable:  { dot: "#a78bfa", glow: "#a78bfa44", dim: "#2e1065" },
+  mastery:  { dot: "#60a5fa", glow: "#60a5fa33", dim: "#1e3a5f" },
+  normal:   { dot: "#d97706", glow: "",           dim: "#1f2937" },
 };
 
 const NODE_RADII = { keystone: 6, notable: 4, mastery: 3.5, normal: 2.2 };
-
-const ZOOM_MIN = 0.15;
-const ZOOM_MAX = 24;
-const ZOOM_STEP = 1.14;
+const ZOOM_MIN = 0.1;
+const ZOOM_MAX = 28;
+const ZOOM_FACTOR = 1.12;
 
 // ── Tooltip ────────────────────────────────────────────────────
-function Tooltip({ node, x, y, canvasW, canvasH }: {
-  node: TreePositionNode; x: number; y: number; canvasW: number; canvasH: number;
+function Tooltip({ node, sx, sy, canvasW, canvasH }: {
+  node: TreePositionNode; sx: number; sy: number; canvasW: number; canvasH: number;
 }) {
-  const W = 210;
-  const left = x + 14 + W > canvasW ? x - W - 10 : x + 14;
-  const top  = y + 10;
+  const W = 220;
+  const left = sx + 16 + W > canvasW ? sx - W - 10 : sx + 16;
+  const top  = Math.min(sy + 8, canvasH - 180);
 
-  const typeLabel = node.type.charAt(0).toUpperCase() + node.type.slice(1);
-  const typeColor = {
+  const typeColor: Record<string, string> = {
     keystone: "#f59e0b", notable: "#a78bfa", mastery: "#60a5fa", normal: "var(--fg-tertiary)",
-  }[node.type];
+  };
 
   return (
     <div style={{
-      position: "absolute",
-      left, top,
-      width: W,
-      background: "var(--bg-raised)",
-      border: "1px solid var(--bg-border)",
-      borderRadius: "var(--r-md)",
-      padding: "8px 10px",
-      pointerEvents: "none",
-      zIndex: 10,
-      boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
+      position: "absolute", left, top, width: W, zIndex: 20,
+      background: "var(--bg-raised)", border: "1px solid var(--bg-border)",
+      borderRadius: "var(--r-md)", padding: "8px 10px", pointerEvents: "none",
+      boxShadow: "0 6px 24px rgba(0,0,0,0.7)",
     }}>
-      {/* Node name */}
       {node.name && (
         <div style={{
-          fontSize: 12, fontWeight: 600,
-          color: typeColor,
-          marginBottom: node.stats?.length ? 5 : 0,
-          lineHeight: 1.3,
+          fontSize: 12, fontWeight: 600, color: typeColor[node.type],
+          lineHeight: 1.3, marginBottom: node.stats?.length ? 6 : 0,
         }}>
           {node.name}
         </div>
       )}
-
-      {/* Stats */}
-      {node.stats?.map((stat, i) => (
-        <div key={i} style={{
-          fontSize: 11,
-          color: "var(--fg-secondary)",
-          lineHeight: 1.5,
-        }}>
-          {stat}
-        </div>
+      {node.stats?.map((s, i) => (
+        <div key={i} style={{ fontSize: 11, color: "var(--fg-secondary)", lineHeight: 1.5 }}>{s}</div>
       ))}
-
-      {/* Footer */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginTop: 6, paddingTop: 5,
-        borderTop: "1px solid var(--bg-divider)",
+        marginTop: 6, paddingTop: 5, borderTop: "1px solid var(--bg-divider)",
       }}>
-        <span style={{ fontSize: 9.5, letterSpacing: "0.06em", color: typeColor, fontWeight: 600 }}>
-          {typeLabel}
+        <span style={{
+          fontSize: 9.5, color: typeColor[node.type], fontWeight: 600,
+          textTransform: "uppercase", letterSpacing: "0.06em",
+        }}>
+          {node.type}
         </span>
         {node.allocated && (
           <span style={{
             fontSize: 9.5, color: "var(--accent-base)",
-            background: "var(--accent-softer)",
-            padding: "1px 5px", borderRadius: "var(--r-sm)",
-            border: "1px solid var(--accent-soft)",
+            background: "var(--accent-softer)", padding: "1px 6px",
+            borderRadius: "var(--r-sm)", border: "1px solid var(--accent-soft)",
           }}>
             Allocated
           </span>
@@ -107,78 +81,60 @@ function Tooltip({ node, x, y, canvasW, canvasH }: {
   );
 }
 
-// ── Main canvas tree ───────────────────────────────────────────
-function TreeCanvas({ positions, width, height, classId, treeVersion }: {
+// ── Canvas renderer ────────────────────────────────────────────
+function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }: {
   positions: TreePositionNode[];
-  width: number;
-  height: number;
-  classId?: number;
-  treeVersion?: string;
+  width: number; height: number;
+  classId?: number; treeVersion?: string;
+  onClose?: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Camera: use ref so pan/zoom don't trigger React re-renders
   const cam = useRef({ x: 0, y: 0, scale: 1 });
-  const drag = useRef<{ active: boolean; sx: number; sy: number; cx: number; cy: number }>({
-    active: false, sx: 0, sy: 0, cx: 0, cy: 0,
-  });
-
-  // Hover state (does trigger re-render — only fires when node changes)
+  const drag = useRef({ active: false, sx: 0, sy: 0, cx: 0, cy: 0 });
   const [hovered, setHovered] = useState<{ node: TreePositionNode; sx: number; sy: number } | null>(null);
 
-  // World-space bounds for initial fit
   const bounds = useMemo(() => {
     if (!positions.length) return null;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const n of positions) {
-      if (n.x < minX) minX = n.x;
-      if (n.x > maxX) maxX = n.x;
-      if (n.y < minY) minY = n.y;
-      if (n.y > maxY) maxY = n.y;
+      if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
     }
     return { minX, maxX, minY, maxY };
   }, [positions]);
 
-  // Draw everything — pure function over cam ref + positions
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     const { x: cx, y: cy, scale: s } = cam.current;
 
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "oklch(0.13 0.004 60)";
     ctx.fillRect(0, 0, width, height);
 
-    // Viewport culling bounds (world space)
-    const vMinX = -cx / s;
-    const vMaxX = (width - cx) / s;
-    const vMinY = -cy / s;
-    const vMaxY = (height - cy) / s;
+    // Viewport culling
+    const vMinX = -cx / s, vMaxX = (width - cx) / s;
+    const vMinY = -cy / s, vMaxY = (height - cy) / s;
 
-    // Unallocated pass first, then allocated on top
     for (let pass = 0; pass < 2; pass++) {
-      const wantAlloc = pass === 1;
+      const alloc = pass === 1;
       for (const node of positions) {
-        if (node.allocated !== wantAlloc) continue;
+        if (node.allocated !== alloc) continue;
         if (node.x < vMinX || node.x > vMaxX || node.y < vMinY || node.y > vMaxY) continue;
 
         const sx = node.x * s + cx;
         const sy = node.y * s + cy;
         const baseR = NODE_RADII[node.type];
-        const r = Math.max(wantAlloc ? 1.2 : 0.6, baseR * Math.min(s * 0.012, 2));
+        const r = Math.max(alloc ? 1.2 : 0.5, baseR * Math.min(s * 0.013, 2.2));
 
         ctx.beginPath();
         ctx.arc(sx, sy, r, 0, Math.PI * 2);
-        ctx.fillStyle = wantAlloc
-          ? NODE_COLORS[node.type].dot
-          : NODE_COLORS.unalloc[node.type];
+        ctx.fillStyle = alloc ? NODE_COLORS[node.type].dot : NODE_COLORS[node.type].dim;
         ctx.fill();
 
-        // Glow ring for allocated keystones/notables
-        if (wantAlloc && (node.type === "keystone" || node.type === "notable") && r > 1) {
+        if (alloc && NODE_COLORS[node.type].glow && r > 1.5) {
           ctx.beginPath();
           ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
           ctx.strokeStyle = NODE_COLORS[node.type].glow;
@@ -189,47 +145,57 @@ function TreeCanvas({ positions, width, height, classId, treeVersion }: {
     }
   }, [positions, width, height]);
 
-  // Fit tree into canvas on first load
   const fitToView = useCallback(() => {
     if (!bounds) return;
     const { minX, maxX, minY, maxY } = bounds;
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
     const pad = 48;
-    const s = Math.min((width - pad * 2) / rangeX, (height - pad * 2) / rangeY);
+    const s = Math.min((width - pad * 2) / (maxX - minX || 1), (height - pad * 2) / (maxY - minY || 1));
     cam.current = {
       scale: s,
-      x: (width - rangeX * s) / 2 - minX * s,
-      y: (height - rangeY * s) / 2 - minY * s,
+      x: (width - (maxX - minX) * s) / 2 - minX * s,
+      y: (height - (maxY - minY) * s) / 2 - minY * s,
     };
     draw();
   }, [bounds, width, height, draw]);
 
+  // Fit on load
   useEffect(() => { fitToView(); }, [fitToView]);
 
-  // ── Wheel zoom (centered on cursor) ───────────────────────────
+  // Re-draw when canvas size changes (fullscreen resize)
+  useEffect(() => { draw(); }, [width, height, draw]);
+
+  // Wheel zoom — non-passive to allow preventDefault
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const onWheel = (e: WheelEvent) => {
+    const handler = (e: WheelEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-      const newScale = Math.max(ZOOM_MIN, Math.min(cam.current.scale * factor, ZOOM_MAX));
-      const ratio = newScale / cam.current.scale;
+      const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+      const next = Math.max(ZOOM_MIN, Math.min(cam.current.scale * factor, ZOOM_MAX));
+      const ratio = next / cam.current.scale;
       cam.current.x = mx - (mx - cam.current.x) * ratio;
       cam.current.y = my - (my - cam.current.y) * ratio;
-      cam.current.scale = newScale;
+      cam.current.scale = next;
       draw();
       setHovered(null);
     };
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    return () => canvas.removeEventListener("wheel", onWheel);
+    canvas.addEventListener("wheel", handler, { passive: false });
+    return () => canvas.removeEventListener("wheel", handler);
   }, [draw]);
 
-  // ── Mouse drag + hover ─────────────────────────────────────────
+  // ESC to close fullscreen
+  useEffect(() => {
+    if (!onClose) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Drag
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     drag.current = { active: true, sx: e.clientX, sy: e.clientY, cx: cam.current.x, cy: cam.current.y };
     setHovered(null);
@@ -237,59 +203,49 @@ function TreeCanvas({ positions, width, height, classId, treeVersion }: {
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (drag.current.active) {
-      cam.current.x = drag.current.cx + (e.clientX - drag.current.sx);
-      cam.current.y = drag.current.cy + (e.clientY - drag.current.sy);
+      cam.current.x = drag.current.cx + e.clientX - drag.current.sx;
+      cam.current.y = drag.current.cy + e.clientY - drag.current.sy;
       draw();
       return;
     }
-
-    // Hover: convert screen → world, find nearest node
+    // Hover hit-test
     const rect = canvasRef.current!.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     const s = cam.current.scale;
     const wx = (sx - cam.current.x) / s;
     const wy = (sy - cam.current.y) / s;
-
-    // Detection radius: 10px screen space → world units
     const thresh = 10 / s;
-    let best: TreePositionNode | null = null;
-    let bestD = thresh;
-
-    for (const node of positions) {
-      const dx = node.x - wx;
-      const dy = node.y - wy;
-      // Fast early-exit before sqrt
+    let best: TreePositionNode | null = null, bestD = thresh;
+    for (const n of positions) {
+      const dx = n.x - wx, dy = n.y - wy;
       if (Math.abs(dx) > thresh || Math.abs(dy) > thresh) continue;
       const d = Math.sqrt(dx * dx + dy * dy);
-      if (d < bestD) { bestD = d; best = node; }
+      if (d < bestD) { bestD = d; best = n; }
     }
-
     setHovered(best ? { node: best, sx, sy } : null);
   }, [positions, draw]);
 
-  const onMouseUp = useCallback(() => { drag.current.active = false; }, []);
+  const onMouseUp   = useCallback(() => { drag.current.active = false; }, []);
   const onMouseLeave = useCallback(() => { drag.current.active = false; setHovered(null); }, []);
 
-  // ── Zoom buttons ──────────────────────────────────────────────
-  const zoom = useCallback((factor: number) => {
+  const zoom = useCallback((f: number) => {
     const cx = width / 2, cy = height / 2;
-    const newScale = Math.max(ZOOM_MIN, Math.min(cam.current.scale * factor, ZOOM_MAX));
-    const ratio = newScale / cam.current.scale;
+    const next = Math.max(ZOOM_MIN, Math.min(cam.current.scale * f, ZOOM_MAX));
+    const ratio = next / cam.current.scale;
     cam.current.x = cx - (cx - cam.current.x) * ratio;
     cam.current.y = cy - (cy - cam.current.y) * ratio;
-    cam.current.scale = newScale;
-    draw();
-    setHovered(null);
+    cam.current.scale = next;
+    draw(); setHovered(null);
   }, [width, height, draw]);
 
   const allocCount = positions.filter(n => n.allocated).length;
   const className = CLASS_NAMES[classId ?? -1] ?? "";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {/* Canvas wrapper — relative so tooltip is positioned inside */}
-      <div style={{ position: "relative", userSelect: "none" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
+      {/* Canvas wrapper */}
+      <div style={{ position: "relative", flex: 1, overflow: "hidden", userSelect: "none" }}>
         <canvas
           ref={canvasRef}
           width={width}
@@ -298,58 +254,29 @@ function TreeCanvas({ positions, width, height, classId, treeVersion }: {
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseLeave}
-          style={{
-            display: "block",
-            borderRadius: "var(--r-md)",
-            border: "1px solid var(--bg-border)",
-            cursor: drag.current.active ? "grabbing" : "crosshair",
-          }}
+          style={{ display: "block", cursor: "crosshair" }}
         />
 
-        {/* Hover tooltip */}
         {hovered && (
-          <Tooltip
-            node={hovered.node}
-            x={hovered.sx}
-            y={hovered.sy}
-            canvasW={width}
-            canvasH={height}
-          />
+          <Tooltip node={hovered.node} sx={hovered.sx} sy={hovered.sy} canvasW={width} canvasH={height} />
         )}
 
-        {/* Zoom controls — bottom-right corner */}
-        <div style={{
-          position: "absolute", bottom: 10, right: 10,
-          display: "flex", flexDirection: "column", gap: 2,
-        }}>
-          {[
-            { label: "+", fn: () => zoom(ZOOM_STEP * 1.5) },
-            { label: "−", fn: () => zoom(1 / (ZOOM_STEP * 1.5)) },
-            { label: "⤢", fn: fitToView },
-          ].map(({ label, fn }) => (
-            <button
-              key={label}
-              onClick={fn}
-              style={{
-                width: 26, height: 26,
-                background: "var(--bg-raised)",
-                border: "1px solid var(--bg-border)",
-                borderRadius: "var(--r-sm)",
-                color: "var(--fg-secondary)",
-                fontSize: label === "⤢" ? 13 : 15,
-                fontFamily: "var(--font-geist-mono, var(--mono))",
-                cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "background 0.1s, color 0.1s",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
-                (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-primary)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-raised)";
-                (e.currentTarget as HTMLButtonElement).style.color = "var(--fg-secondary)";
-              }}
+        {/* Zoom controls */}
+        <div style={{ position: "absolute", bottom: 12, right: 12, display: "flex", flexDirection: "column", gap: 3 }}>
+          {([
+            { label: "+", action: () => zoom(ZOOM_FACTOR * 2) },
+            { label: "−", action: () => zoom(1 / (ZOOM_FACTOR * 2)) },
+            { label: "⤢", action: fitToView },
+          ] as const).map(({ label, action }) => (
+            <button key={label} onClick={action} style={{
+              width: 28, height: 28, background: "var(--bg-raised)",
+              border: "1px solid var(--bg-border)", borderRadius: "var(--r-sm)",
+              color: "var(--fg-secondary)", fontSize: label === "⤢" ? 13 : 16,
+              fontFamily: "var(--font-geist-mono, var(--mono))",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            onMouseEnter={e => { const b = e.currentTarget; b.style.background = "var(--bg-hover)"; b.style.color = "var(--fg-primary)"; }}
+            onMouseLeave={e => { const b = e.currentTarget; b.style.background = "var(--bg-raised)"; b.style.color = "var(--fg-secondary)"; }}
             >
               {label}
             </button>
@@ -357,27 +284,22 @@ function TreeCanvas({ positions, width, height, classId, treeVersion }: {
         </div>
       </div>
 
-      {/* Footer bar */}
+      {/* Footer */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 2px",
+        padding: "6px 12px", borderTop: "1px solid var(--bg-divider)",
+        background: "var(--bg-surface)", flexShrink: 0,
       }}>
         <span style={{ fontSize: 11, color: "var(--accent-base)", fontWeight: 600 }}>{className}</span>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {(["keystone", "notable", "normal"] as const).map((type) => (
-            <span key={type} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <svg width={8} height={8}>
-                <circle cx={4} cy={4} r={3} fill={NODE_COLORS[type].dot} />
-              </svg>
-              <span style={{ fontSize: 10, color: "var(--fg-muted)", textTransform: "capitalize" }}>{type}</span>
+        <div style={{ display: "flex", gap: 14 }}>
+          {(["keystone", "notable", "normal"] as const).map(t => (
+            <span key={t} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <svg width={8} height={8}><circle cx={4} cy={4} r={3} fill={NODE_COLORS[t].dot} /></svg>
+              <span style={{ fontSize: 10, color: "var(--fg-muted)", textTransform: "capitalize" }}>{t}</span>
             </span>
           ))}
         </div>
-        <span style={{
-          fontSize: 10,
-          color: "var(--fg-muted)",
-          fontFamily: "var(--font-geist-mono, var(--mono))",
-        }}>
+        <span style={{ fontSize: 10, color: "var(--fg-muted)", fontFamily: "var(--font-geist-mono, var(--mono))" }}>
           {allocCount} allocated{treeVersion ? ` · v${treeVersion}` : ""}
         </span>
       </div>
@@ -385,44 +307,193 @@ function TreeCanvas({ positions, width, height, classId, treeVersion }: {
   );
 }
 
-// ── Public export ──────────────────────────────────────────────
-export default function PassiveTree({ tree, positions, width = 880, height = 520 }: PassiveTreeProps) {
-  if (!positions?.length) {
-    if (tree?.nodes?.length && typeof (tree.nodes as unknown[])[0] === "number") {
-      const ids = tree.nodes as number[];
-      const className = CLASS_NAMES[tree.classId ?? -1] ?? "Unknown";
-      return (
-        <div style={{ width, height, display: "flex", flexDirection: "column", alignItems: "center",
-          justifyContent: "center", background: "var(--bg-surface)", borderRadius: "var(--r-md)",
-          border: "1px solid var(--bg-border)", gap: 12, padding: 32 }}>
-          <svg width={180} height={180} viewBox="0 0 240 240">
-            {[90, 70, 50, 30].map(r => <circle key={r} cx={120} cy={120} r={r} fill="none" stroke="var(--bg-divider)" strokeWidth={2} />)}
-            <circle cx={120} cy={120} r={90} fill="none" stroke="var(--accent-base)" strokeWidth={7}
-              strokeDasharray={`${Math.min(ids.length / 120, 1) * 2 * Math.PI * 90} ${2 * Math.PI * 90}`}
-              strokeDashoffset={2 * Math.PI * 90 * 0.25} strokeLinecap="round" opacity={0.8} />
-            <text x={120} y={112} textAnchor="middle" fill="var(--accent-base)" fontSize={30} fontWeight="bold" fontFamily="monospace">{ids.length}</text>
-            <text x={120} y={134} textAnchor="middle" fill="var(--fg-muted)" fontSize={11} fontFamily="sans-serif">nodes allocated</text>
-          </svg>
-          <div style={{ fontSize: 11, color: "var(--accent-base)", fontWeight: 600 }}>{className}</div>
+// ── Fullscreen overlay wrapper ─────────────────────────────────
+function FullscreenTree({ tree, positions, onClose }: {
+  tree: TreeData | null;
+  positions: TreePositionNode[];
+  onClose: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 1200, h: 800 });
+
+  useEffect(() => {
+    const update = () => {
+      if (containerRef.current) {
+        setDims({ w: containerRef.current.offsetWidth, h: containerRef.current.offsetHeight });
+      }
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 100,
+      background: "var(--bg-app)",
+      display: "flex", flexDirection: "column",
+    }}>
+      {/* Toolbar */}
+      <div style={{
+        display: "flex", alignItems: "center", height: 38,
+        padding: "0 16px", borderBottom: "1px solid var(--bg-divider)",
+        background: "var(--bg-surface)", flexShrink: 0, gap: 12,
+      }}>
+        <div style={{
+          width: 20, height: 20, borderRadius: "var(--r-sm)",
+          background: "linear-gradient(135deg, var(--accent-base), var(--accent-dim))",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "var(--font-geist-mono, var(--mono))",
+          fontWeight: 700, fontSize: 10, color: "var(--bg-app)",
+        }}>P2</div>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-primary)" }}>Passive Tree</span>
+        <span style={{
+          fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase",
+          color: "var(--fg-muted)", padding: "1px 5px",
+          background: "var(--bg-raised)", borderRadius: "var(--r-sm)",
+          border: "1px solid var(--bg-border)",
+        }}>
+          Scroll to zoom · Drag to pan · Hover for stats
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={onClose}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, height: 26,
+            padding: "0 10px", background: "var(--bg-raised)",
+            border: "1px solid var(--bg-border)", borderRadius: "var(--r-sm)",
+            color: "var(--fg-secondary)", fontSize: 11, cursor: "pointer",
+            fontFamily: "var(--font-geist, var(--sans))",
+          }}
+          onMouseEnter={e => { const b = e.currentTarget; b.style.background = "var(--bg-hover)"; b.style.color = "var(--fg-primary)"; }}
+          onMouseLeave={e => { const b = e.currentTarget; b.style.background = "var(--bg-raised)"; b.style.color = "var(--fg-secondary)"; }}
+        >
+          Close <span style={{ color: "var(--fg-faint)", fontSize: 10 }}>Esc</span>
+        </button>
+      </div>
+
+      {/* Tree fills remaining space */}
+      <div ref={containerRef} style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
+        {dims.w > 0 && (
+          <TreeCanvas
+            positions={positions}
+            width={dims.w}
+            height={dims.h}
+            classId={tree?.classId}
+            treeVersion={tree?.treeVersion}
+            onClose={onClose}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Ring summary (compact inline view) ────────────────────────
+function RingSummary({ tree, onExpand, hasPositions }: {
+  tree: TreeData; onExpand: () => void; hasPositions: boolean;
+}) {
+  const nodes = tree.nodes as number[];
+  const className = CLASS_NAMES[tree.classId ?? -1] ?? "Unknown";
+  const pct = Math.min(nodes.length / 120, 1);
+  const r = 56;
+  const circ = 2 * Math.PI * r;
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 20,
+      padding: "14px 20px",
+      background: "var(--bg-surface)",
+      borderRadius: "var(--r-lg)",
+      border: "1px solid var(--bg-border)",
+    }}>
+      {/* Ring */}
+      <svg width={130} height={130} viewBox="0 0 130 130" style={{ flexShrink: 0 }}>
+        {[52, 40, 28, 16].map(r2 => (
+          <circle key={r2} cx={65} cy={65} r={r2} fill="none" stroke="var(--bg-divider)" strokeWidth={1.5} />
+        ))}
+        <circle cx={65} cy={65} r={r} fill="none" stroke="var(--accent-base)" strokeWidth={6}
+          strokeDasharray={`${pct * circ} ${circ}`}
+          strokeDashoffset={circ * 0.25}
+          strokeLinecap="round" opacity={0.85}
+        />
+        <text x={65} y={60} textAnchor="middle" fill="var(--accent-base)"
+          fontSize={22} fontWeight="bold" fontFamily="var(--font-geist-mono, monospace)">
+          {nodes.length}
+        </text>
+        <text x={65} y={76} textAnchor="middle" fill="var(--fg-muted)" fontSize={9} fontFamily="sans-serif">
+          NODES ALLOCATED
+        </text>
+      </svg>
+
+      {/* Info */}
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--accent-base)", marginBottom: 4 }}>
+          {className}
         </div>
-      );
-    }
+        {tree.treeVersion && (
+          <div style={{ fontSize: 10, color: "var(--fg-faint)", fontFamily: "var(--font-geist-mono, monospace)", marginBottom: 12 }}>
+            v{tree.treeVersion}
+          </div>
+        )}
+        <button
+          onClick={onExpand}
+          disabled={!hasPositions}
+          style={{
+            display: "flex", alignItems: "center", gap: 7,
+            height: 30, padding: "0 14px",
+            background: hasPositions ? "var(--accent-softer)" : "var(--bg-raised)",
+            border: `1px solid ${hasPositions ? "var(--accent-soft)" : "var(--bg-border)"}`,
+            borderRadius: "var(--r-md)",
+            color: hasPositions ? "var(--accent-base)" : "var(--fg-faint)",
+            fontSize: 11, fontWeight: 600, cursor: hasPositions ? "pointer" : "not-allowed",
+            fontFamily: "var(--font-geist, var(--sans))",
+            transition: "background 0.12s, border-color 0.12s",
+          }}
+          onMouseEnter={e => { if (hasPositions) { const b = e.currentTarget; b.style.background = "var(--accent-soft)"; b.style.borderColor = "var(--accent-dim)"; }}}
+          onMouseLeave={e => { if (hasPositions) { const b = e.currentTarget; b.style.background = "var(--accent-softer)"; b.style.borderColor = "var(--accent-soft)"; }}}
+        >
+          <svg width={12} height={12} viewBox="0 0 12 12" fill="none">
+            <path d="M2 10L10 2M10 2H5M10 2V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {hasPositions ? "Open Full Tree" : "Loading tree…"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Public component ───────────────────────────────────────────
+export default function PassiveTree({ tree, positions }: PassiveTreeProps) {
+  const [open, setOpen] = useState(false);
+
+  const hasPositions = !!positions?.length;
+  const hasTree = !!(tree?.nodes?.length && typeof (tree.nodes as unknown[])[0] === "number");
+
+  if (!hasTree) {
     return (
-      <div style={{ width, height, display: "flex", alignItems: "center", justifyContent: "center",
-        background: "var(--bg-surface)", borderRadius: "var(--r-md)", border: "1px solid var(--bg-border)",
-        color: "var(--fg-faint)", fontSize: 11 }}>
-        Passive tree will appear here after loading a build
+      <div style={{
+        padding: "20px", background: "var(--bg-surface)",
+        borderRadius: "var(--r-lg)", border: "1px solid var(--bg-border)",
+        color: "var(--fg-faint)", fontSize: 11, textAlign: "center",
+      }}>
+        Passive tree will appear after loading a build
       </div>
     );
   }
 
   return (
-    <TreeCanvas
-      positions={positions}
-      width={width}
-      height={height}
-      classId={tree?.classId}
-      treeVersion={tree?.treeVersion}
-    />
+    <>
+      <RingSummary tree={tree!} onExpand={() => setOpen(true)} hasPositions={hasPositions} />
+
+      {open && hasPositions && (
+        <FullscreenTree
+          tree={tree}
+          positions={positions!}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
