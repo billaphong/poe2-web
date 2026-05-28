@@ -93,14 +93,31 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
   const drag = useRef({ active: false, sx: 0, sy: 0, cx: 0, cy: 0 });
   const [hovered, setHovered] = useState<{ node: TreePositionNode; sx: number; sy: number } | null>(null);
 
+  // Full-tree bounds and allocated-only bounds
   const bounds = useMemo(() => {
     if (!positions.length) return null;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let aMinX = Infinity, aMaxX = -Infinity, aMinY = Infinity, aMaxY = -Infinity;
     for (const n of positions) {
       if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
       if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+      if (n.allocated) {
+        if (n.x < aMinX) aMinX = n.x; if (n.x > aMaxX) aMaxX = n.x;
+        if (n.y < aMinY) aMinY = n.y; if (n.y > aMaxY) aMaxY = n.y;
+      }
     }
-    return { minX, maxX, minY, maxY };
+    const hasAlloc = aMinX !== Infinity;
+    return {
+      full: { minX, maxX, minY, maxY },
+      alloc: hasAlloc ? { minX: aMinX, maxX: aMaxX, minY: aMinY, maxY: aMaxY } : null,
+    };
+  }, [positions]);
+
+  // Position lookup map for edge drawing
+  const posMap = useMemo(() => {
+    const m = new Map<number, TreePositionNode>();
+    for (const n of positions) m.set(n.id, n);
+    return m;
   }, [positions]);
 
   const draw = useCallback(() => {
@@ -114,10 +131,48 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
     ctx.fillStyle = "oklch(0.13 0.004 60)";
     ctx.fillRect(0, 0, width, height);
 
-    // Viewport culling
+    // Viewport culling bounds (world space)
     const vMinX = -cx / s, vMaxX = (width - cx) / s;
     const vMinY = -cy / s, vMaxY = (height - cy) / s;
 
+    // ── Edges (batched by type for performance) ──────────────────
+    const edgeW = Math.max(0.3, Math.min(s * 0.002, 1.5));
+
+    // Unallocated edges
+    ctx.beginPath();
+    for (const node of positions) {
+      if (!node.connections?.length) continue;
+      if (node.x < vMinX - 500 || node.x > vMaxX + 500) continue;
+      for (const connId of node.connections) {
+        if (connId <= node.id) continue; // deduplicate: only draw each edge once
+        const to = posMap.get(connId);
+        if (!to) continue;
+        if (node.allocated && to.allocated) continue; // skip allocated (drawn separately)
+        ctx.moveTo(node.x * s + cx, node.y * s + cy);
+        ctx.lineTo(to.x * s + cx, to.y * s + cy);
+      }
+    }
+    ctx.strokeStyle = "oklch(0.28 0.005 60)";
+    ctx.lineWidth = edgeW;
+    ctx.stroke();
+
+    // Allocated path edges (brighter, thicker)
+    ctx.beginPath();
+    for (const node of positions) {
+      if (!node.allocated || !node.connections?.length) continue;
+      for (const connId of node.connections) {
+        if (connId <= node.id) continue;
+        const to = posMap.get(connId);
+        if (!to?.allocated) continue;
+        ctx.moveTo(node.x * s + cx, node.y * s + cy);
+        ctx.lineTo(to.x * s + cx, to.y * s + cy);
+      }
+    }
+    ctx.strokeStyle = "oklch(0.52 0.10 75)";
+    ctx.lineWidth = Math.max(0.8, edgeW * 2.5);
+    ctx.stroke();
+
+    // ── Nodes ────────────────────────────────────────────────────
     for (let pass = 0; pass < 2; pass++) {
       const alloc = pass === 1;
       for (const node of positions) {
@@ -143,26 +198,40 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         }
       }
     }
-  }, [positions, width, height]);
+  }, [positions, posMap, width, height]);
 
-  const fitToView = useCallback(() => {
-    if (!bounds) return;
-    const { minX, maxX, minY, maxY } = bounds;
-    const pad = 48;
-    const s = Math.min((width - pad * 2) / (maxX - minX || 1), (height - pad * 2) / (maxY - minY || 1));
+  // Fit to a bounding box
+  const fitBox = useCallback((minX: number, maxX: number, minY: number, maxY: number, pad = 120) => {
+    const rangeX = (maxX - minX + pad * 2) || 1;
+    const rangeY = (maxY - minY + pad * 2) || 1;
+    const s = Math.min((width - 64) / rangeX, (height - 64) / rangeY);
     cam.current = {
       scale: s,
-      x: (width - (maxX - minX) * s) / 2 - minX * s,
-      y: (height - (maxY - minY) * s) / 2 - minY * s,
+      x: (width - rangeX * s) / 2 - (minX - pad) * s,
+      y: (height - rangeY * s) / 2 - (minY - pad) * s,
     };
     draw();
-  }, [bounds, width, height, draw]);
+  }, [width, height, draw]);
 
-  // Fit on load
-  useEffect(() => { fitToView(); }, [fitToView]);
+  // ⤢ button: fit full tree
+  const fitToView = useCallback(() => {
+    if (!bounds) return;
+    const { minX, maxX, minY, maxY } = bounds.full;
+    fitBox(minX, maxX, minY, maxY, 80);
+  }, [bounds, fitBox]);
 
-  // Re-draw when canvas size changes (fullscreen resize)
-  useEffect(() => { draw(); }, [width, height, draw]);
+  // On open: zoom to the allocated path with generous padding
+  const fitToAllocated = useCallback(() => {
+    if (!bounds) return;
+    const b = bounds.alloc ?? bounds.full;
+    fitBox(b.minX, b.maxX, b.minY, b.maxY, 400);
+  }, [bounds, fitBox]);
+
+  // Fit to build path on first render
+  useEffect(() => { fitToAllocated(); }, [fitToAllocated]);
+
+  // Re-draw on resize without resetting zoom
+  useEffect(() => { draw(); }, [width, height, draw]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wheel zoom — non-passive to allow preventDefault
   useEffect(() => {

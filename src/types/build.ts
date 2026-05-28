@@ -71,6 +71,7 @@ export interface TreePositionNode {
   type: "keystone" | "notable" | "normal" | "mastery";
   name: string;
   stats: string[];
+  connections: number[];
   allocated: boolean;
 }
 
