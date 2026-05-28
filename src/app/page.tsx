@@ -8,6 +8,16 @@ import StatsPanel from "@/components/StatsPanel";
 import { loadBuild, fetchAllBuildData } from "@/lib/apiClient";
 import type { BuildData } from "@/types/build";
 
+const CLASS_NAMES: Record<number, string> = {
+  0: "Witch",
+  1: "Ranger",
+  2: "Duelist",
+  3: "Marauder",
+  4: "Shadow",
+  5: "Templar",
+  6: "Scion",
+};
+
 export default function HomePage() {
   const [buildData, setBuildData] = useState<BuildData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,6 +30,9 @@ export default function HomePage() {
     try {
       await loadBuild(input);
       const data = await fetchAllBuildData();
+      if (!data.info.class && data.tree.classId !== undefined) {
+        data.info.class = CLASS_NAMES[data.tree.classId] ?? "Unknown";
+      }
       setBuildData(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load build. Check the URL or code and try again.";

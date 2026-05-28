@@ -7,11 +7,11 @@ interface GearSlotsProps {
 }
 
 const SLOT_ORDER = [
-  "Helm",
+  "Helmet",
   "Amulet",
-  "Weapon",
+  "Weapon 1",
   "Body Armour",
-  "Offhand",
+  "Weapon 2",
   "Ring 1",
   "Gloves",
   "Ring 2",
@@ -20,11 +20,11 @@ const SLOT_ORDER = [
 ];
 
 const SLOT_LABELS: Record<string, string> = {
-  Helm: "Helm",
+  Helmet: "Helm",
   Amulet: "Amulet",
-  Weapon: "Weapon",
+  "Weapon 1": "Weapon",
   "Body Armour": "Body",
-  Offhand: "Offhand",
+  "Weapon 2": "Offhand",
   "Ring 1": "Ring L",
   Gloves: "Gloves",
   "Ring 2": "Ring R",
@@ -76,12 +76,12 @@ export default function GearSlots({ items }: GearSlotsProps) {
 
       <div className="grid grid-cols-3 gap-2">
         <div />
-        <SlotCard slot="Helm" item={slotMap.get("Helm")} />
+        <SlotCard slot="Helmet" item={slotMap.get("Helmet")} />
         <div />
 
-        <SlotCard slot="Weapon" item={slotMap.get("Weapon")} />
+        <SlotCard slot="Weapon 1" item={slotMap.get("Weapon 1")} />
         <SlotCard slot="Body Armour" item={slotMap.get("Body Armour")} />
-        <SlotCard slot="Offhand" item={slotMap.get("Offhand")} />
+        <SlotCard slot="Weapon 2" item={slotMap.get("Weapon 2")} />
 
         <SlotCard slot="Ring 1" item={slotMap.get("Ring 1")} />
         <SlotCard slot="Amulet" item={slotMap.get("Amulet")} />
