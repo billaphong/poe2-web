@@ -25,11 +25,8 @@ export interface TreeNode {
   name?: string;
   x: number;
   y: number;
-  allocated: boolean;
-  isKeystone?: boolean;
-  isNotable?: boolean;
-  isMastery?: boolean;
-  icon?: string;
+  type?: "normal" | "notable" | "keystone" | "mastery" | "ascendancy" | "jewel";
+  ascendancyName?: string;
 }
 
 export interface TreeData {
