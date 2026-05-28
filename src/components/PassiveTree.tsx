@@ -384,7 +384,9 @@ function FullscreenTree({ tree, positions, onClose }: {
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState({ w: 1200, h: 800 });
+  const [enrichedPositions, setEnrichedPositions] = useState<TreePositionNode[]>(positions);
 
+  // Measure container
   useEffect(() => {
     const update = () => {
       if (containerRef.current) {
@@ -396,6 +398,24 @@ function FullscreenTree({ tree, positions, onClose }: {
     if (containerRef.current) ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, []);
+
+  // Fetch static connection data and merge into positions
+  // tree-connections.json is pre-generated from tree.json — static game data, never changes
+  useEffect(() => {
+    fetch("/tree-connections.json")
+      .then(r => r.json())
+      .then((conns: Record<string, number[]>) => {
+        setEnrichedPositions(
+          positions.map(node => ({
+            ...node,
+            connections: node.connections?.length
+              ? node.connections
+              : (conns[String(node.id)] ?? []),
+          }))
+        );
+      })
+      .catch(() => setEnrichedPositions(positions));
+  }, [positions]);
 
   return (
     <div style={{
@@ -446,7 +466,7 @@ function FullscreenTree({ tree, positions, onClose }: {
       <div ref={containerRef} style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
         {dims.w > 0 && (
           <TreeCanvas
-            positions={positions}
+            positions={enrichedPositions}
             width={dims.w}
             height={dims.h}
             classId={tree?.classId}
