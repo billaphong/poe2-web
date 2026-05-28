@@ -35,7 +35,8 @@ export async function loadBuild(input: string): Promise<LoadBuildResponse> {
   let body: Record<string, string>;
   if (input.startsWith("http://") || input.startsWith("https://")) {
     body = { pobb_url: input };
-  } else if (/^[A-Za-z0-9_-]{4,20}$/.test(input)) {
+  } else if (/^[A-Za-z0-9_=+-]{4,200}$/.test(input) && !input.trimStart().startsWith("<")) {
+    // pobb.in share codes can be up to ~100 chars (base64url encoded)
     body = { pobb_code: input };
   } else {
     body = { build_xml: input };
