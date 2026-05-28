@@ -128,35 +128,38 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
     const { x: cx, y: cy, scale: s } = cam.current;
 
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "oklch(0.13 0.004 60)";
+    ctx.fillStyle = "oklch(0.11 0.004 60)";
     ctx.fillRect(0, 0, width, height);
 
-    // Viewport culling bounds (world space)
-    const vMinX = -cx / s, vMaxX = (width - cx) / s;
-    const vMinY = -cy / s, vMaxY = (height - cy) / s;
+    // Viewport culling bounds (world space) with generous margin for edges
+    const margin = 2000;
+    const vMinX = (-cx / s) - margin, vMaxX = ((width - cx) / s) + margin;
+    const vMinY = (-cy / s) - margin, vMaxY = ((height - cy) / s) + margin;
 
-    // ── Edges (batched by type for performance) ──────────────────
-    const edgeW = Math.max(0.3, Math.min(s * 0.002, 1.5));
+    // Scale-dependent line widths
+    const baseEdgeW = Math.max(0.5, Math.min(s * 0.003, 2));
+    const allocEdgeW = Math.max(1.5, Math.min(s * 0.008, 5));
 
-    // Unallocated edges
+    // ── Unallocated edges ─────────────────────────────────────────
     ctx.beginPath();
     for (const node of positions) {
       if (!node.connections?.length) continue;
-      if (node.x < vMinX - 500 || node.x > vMaxX + 500) continue;
+      if (node.x < vMinX || node.x > vMaxX || node.y < vMinY || node.y > vMaxY) continue;
       for (const connId of node.connections) {
-        if (connId <= node.id) continue; // deduplicate: only draw each edge once
+        if (connId <= node.id) continue;
         const to = posMap.get(connId);
         if (!to) continue;
-        if (node.allocated && to.allocated) continue; // skip allocated (drawn separately)
+        if (node.allocated && to.allocated) continue;
         ctx.moveTo(node.x * s + cx, node.y * s + cy);
         ctx.lineTo(to.x * s + cx, to.y * s + cy);
       }
     }
-    ctx.strokeStyle = "oklch(0.28 0.005 60)";
-    ctx.lineWidth = edgeW;
+    ctx.strokeStyle = "oklch(0.36 0.008 70)";
+    ctx.lineWidth = baseEdgeW;
     ctx.stroke();
 
-    // Allocated path edges (brighter, thicker)
+    // ── Allocated path edges ──────────────────────────────────────
+    // Draw a subtle dark halo first for contrast
     ctx.beginPath();
     for (const node of positions) {
       if (!node.allocated || !node.connections?.length) continue;
@@ -168,8 +171,24 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         ctx.lineTo(to.x * s + cx, to.y * s + cy);
       }
     }
-    ctx.strokeStyle = "oklch(0.52 0.10 75)";
-    ctx.lineWidth = Math.max(0.8, edgeW * 2.5);
+    ctx.strokeStyle = "rgba(0,0,0,0.6)";
+    ctx.lineWidth = allocEdgeW + 2;
+    ctx.stroke();
+
+    // Bright amber path on top
+    ctx.beginPath();
+    for (const node of positions) {
+      if (!node.allocated || !node.connections?.length) continue;
+      for (const connId of node.connections) {
+        if (connId <= node.id) continue;
+        const to = posMap.get(connId);
+        if (!to?.allocated) continue;
+        ctx.moveTo(node.x * s + cx, node.y * s + cy);
+        ctx.lineTo(to.x * s + cx, to.y * s + cy);
+      }
+    }
+    ctx.strokeStyle = "oklch(0.72 0.16 75)";
+    ctx.lineWidth = allocEdgeW;
     ctx.stroke();
 
     // ── Nodes ────────────────────────────────────────────────────
@@ -182,19 +201,28 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         const sx = node.x * s + cx;
         const sy = node.y * s + cy;
         const baseR = NODE_RADII[node.type];
-        const r = Math.max(alloc ? 1.2 : 0.5, baseR * Math.min(s * 0.013, 2.2));
+        const r = Math.max(alloc ? 1.8 : 0.8, baseR * Math.min(s * 0.016, 3.0));
 
         ctx.beginPath();
         ctx.arc(sx, sy, r, 0, Math.PI * 2);
         ctx.fillStyle = alloc ? NODE_COLORS[node.type].dot : NODE_COLORS[node.type].dim;
         ctx.fill();
 
-        if (alloc && NODE_COLORS[node.type].glow && r > 1.5) {
+        if (alloc && r > 1) {
+          // Dark halo for contrast
           ctx.beginPath();
-          ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
-          ctx.strokeStyle = NODE_COLORS[node.type].glow;
-          ctx.lineWidth = 1.5;
+          ctx.arc(sx, sy, r + 2.5, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(0,0,0,0.5)";
+          ctx.lineWidth = 2;
           ctx.stroke();
+          // Glow ring
+          if (NODE_COLORS[node.type].glow) {
+            ctx.beginPath();
+            ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
+            ctx.strokeStyle = NODE_COLORS[node.type].glow;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
         }
       }
     }
@@ -220,11 +248,15 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
     fitBox(minX, maxX, minY, maxY, 80);
   }, [bounds, fitBox]);
 
-  // On open: zoom to the allocated path with generous padding
+  // On open: zoom to the allocated path with some surrounding context
   const fitToAllocated = useCallback(() => {
     if (!bounds) return;
     const b = bounds.alloc ?? bounds.full;
-    fitBox(b.minX, b.maxX, b.minY, b.maxY, 400);
+    // Use 15% of the allocated range as padding so nearby unallocated nodes show
+    const rangeX = b.maxX - b.minX;
+    const rangeY = b.maxY - b.minY;
+    const pad = Math.max(500, Math.min(rangeX, rangeY) * 0.25);
+    fitBox(b.minX, b.maxX, b.minY, b.maxY, pad);
   }, [bounds, fitBox]);
 
   // Fit to build path on first render
