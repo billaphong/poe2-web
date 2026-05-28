@@ -2,8 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body {
-  background-color: #111827;
-  color: #f9fafb;
+/* ── Homebrew design tokens ───────────────────────────────────── */
+:root {
+  --bg-app:        oklch(0.185 0.006 60);
+  --bg-surface:    oklch(0.215 0.006 60);
+  --bg-raised:     oklch(0.245 0.007 60);
+  --bg-hover:      oklch(0.265 0.007 60);
+  --bg-divider:    oklch(0.295 0.007 60);
+  --bg-border:     oklch(0.33  0.008 60);
+
+  --fg-primary:    oklch(0.96 0.004 80);
+  --fg-secondary:  oklch(0.82 0.006 70);
+  --fg-tertiary:   oklch(0.70 0.006 70);
+  --fg-muted:      oklch(0.58 0.006 70);
+  --fg-faint:      oklch(0.42 0.006 70);
+
+  --accent-base:   oklch(0.78 0.14 75);
+  --accent-dim:    oklch(0.58 0.11 75);
+  --accent-soft:   oklch(0.30 0.06 75);
+  --accent-softer: oklch(0.24 0.03 75);
+
+  --state-crit-fg:     oklch(0.75 0.16 27);
+  --state-crit-tint:   oklch(0.27 0.08 27);
+  --state-crit-border: oklch(0.42 0.13 27);
+  --state-watch-fg:    oklch(0.80 0.15 60);
+  --state-healthy-fg:  oklch(0.78 0.13 150);
+
+  --res-fire:      oklch(0.72 0.18 27);
+  --res-cold:      oklch(0.76 0.13 240);
+  --res-lightning: oklch(0.90 0.20 100);
+  --res-chaos:     oklch(0.72 0.16 305);
+
+  --rarity-magic:  oklch(0.72 0.13 260);
+  --rarity-rare:   oklch(0.82 0.15 75);
+  --rarity-unique: oklch(0.74 0.17 45);
+
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-app);
+  color: var(--fg-primary);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }

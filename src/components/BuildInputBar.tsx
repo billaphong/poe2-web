@@ -10,6 +10,7 @@ interface BuildInputBarProps {
 
 export default function BuildInputBar({ onLoad, loading, error }: BuildInputBarProps) {
   const [input, setInput] = useState("");
+  const [focused, setFocused] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,26 +20,63 @@ export default function BuildInputBar({ onLoad, loading, error }: BuildInputBarP
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <form onSubmit={handleSubmit} className="flex gap-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 0 }}>
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Paste pobb.in URL (https://pobb.in/XXXXX) or build export code..."
-          className="flex-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-colors"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="Paste pobb.in URL or build export code…"
           disabled={loading}
+          style={{
+            flex: 1,
+            height: 34,
+            padding: "0 12px",
+            background: "var(--bg-raised)",
+            border: `1px solid ${focused ? "var(--accent-dim)" : "var(--bg-border)"}`,
+            borderRight: "none",
+            borderRadius: "var(--r-md) 0 0 var(--r-md)",
+            color: "var(--fg-primary)",
+            fontSize: 12,
+            fontFamily: "var(--font-geist, var(--sans))",
+            outline: "none",
+            transition: "border-color 0.12s",
+          }}
         />
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="px-6 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+          style={{
+            height: 34,
+            padding: "0 18px",
+            background: loading || !input.trim() ? "var(--bg-raised)" : "var(--accent-base)",
+            color: loading || !input.trim() ? "var(--fg-faint)" : "var(--bg-app)",
+            border: `1px solid ${loading || !input.trim() ? "var(--bg-border)" : "var(--accent-base)"}`,
+            borderRadius: "0 var(--r-md) var(--r-md) 0",
+            fontSize: 11,
+            fontWeight: 600,
+            fontFamily: "var(--font-geist, var(--sans))",
+            cursor: loading || !input.trim() ? "not-allowed" : "pointer",
+            letterSpacing: "0.04em",
+            transition: "background 0.12s, color 0.12s",
+            whiteSpace: "nowrap" as const,
+          }}
         >
-          {loading ? "Loading..." : "Load Build"}
+          {loading ? "Loading…" : "Load Build"}
         </button>
       </form>
+
       {error && (
-        <div className="px-3 py-2 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">
+        <div style={{
+          fontSize: 11, padding: "6px 10px",
+          background: "var(--state-crit-tint)",
+          border: "1px solid var(--state-crit-border)",
+          borderTop: "none",
+          borderRadius: "0 0 var(--r-md) var(--r-md)",
+          color: "var(--state-crit-fg)",
+        }}>
           {error}
         </div>
       )}

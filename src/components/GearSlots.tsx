@@ -6,79 +6,111 @@ interface GearSlotsProps {
   items: ItemData[] | null;
 }
 
-const SLOT_LAYOUT = [
-  [null, "Helmet", null],
+// 3-col paperdoll layout matching PoE2 character screen
+const GRID_ROWS = [
+  [null,       "Helmet",      null],
   ["Weapon 1", "Body Armour", "Weapon 2"],
-  ["Ring 1", "Amulet", "Ring 2"],
-  ["Gloves", "Belt", "Boots"],
+  ["Ring 1",   "Amulet",      "Ring 2"],
+  ["Gloves",   "Belt",        "Boots"],
 ];
 
 const SLOT_LABELS: Record<string, string> = {
-  Helmet: "Helm",
-  "Weapon 1": "Weapon",
-  "Body Armour": "Body",
-  "Weapon 2": "Offhand",
-  "Ring 1": "Ring L",
-  Amulet: "Amulet",
-  "Ring 2": "Ring R",
-  Gloves: "Gloves",
-  Belt: "Belt",
-  Boots: "Boots",
+  Helmet: "Helm", "Weapon 1": "Weapon", "Body Armour": "Body",
+  "Weapon 2": "Offhand", "Ring 1": "Ring L", Amulet: "Amulet",
+  "Ring 2": "Ring R", Gloves: "Gloves", Belt: "Belt", Boots: "Boots",
 };
 
-const RARITY_LABEL_COLORS: Record<string, string> = {
-  NORMAL: "text-gray-300",
-  MAGIC: "text-blue-400",
-  RARE: "text-yellow-400",
-  UNIQUE: "text-orange-400",
+const RARITY_COLOR: Record<string, string> = {
+  NORMAL: "var(--fg-tertiary)",
+  MAGIC:  "var(--rarity-magic)",
+  RARE:   "var(--rarity-rare)",
+  UNIQUE: "var(--rarity-unique)",
 };
 
-/** Parse PoB raw item text into display lines (mods only, no metadata). */
 function parseMods(raw: string): { implicits: string[]; explicits: string[] } {
-  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
-
-  let implicits: string[] = [];
-  let explicits: string[] = [];
-
-  // Find the "Implicits: N" line — mods start after it
-  const implIdx = lines.findIndex(l => l.startsWith("Implicits:"));
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  const implIdx = lines.findIndex((l) => l.startsWith("Implicits:"));
   if (implIdx === -1) return { implicits: [], explicits: [] };
-
-  const implCount = parseInt(lines[implIdx].replace("Implicits:", "").trim(), 10) || 0;
-  const modsStart = implIdx + 1;
-  implicits = lines.slice(modsStart, modsStart + implCount);
-  explicits = lines.slice(modsStart + implCount);
-
-  return { implicits, explicits };
+  const count = parseInt(lines[implIdx].replace("Implicits:", "").trim(), 10) || 0;
+  return {
+    implicits: lines.slice(implIdx + 1, implIdx + 1 + count),
+    explicits: lines.slice(implIdx + 1 + count),
+  };
 }
 
 function SlotCard({ slot, item }: { slot: string; item?: ItemData }) {
   const rarity = item?.rarity ?? "NORMAL";
-  const nameColor = RARITY_LABEL_COLORS[rarity] ?? "text-gray-300";
+  const nameColor = RARITY_COLOR[rarity] ?? "var(--fg-tertiary)";
   const { implicits, explicits } = item?.raw ? parseMods(item.raw) : { implicits: [], explicits: [] };
-  const allMods = [...implicits, ...explicits];
+  const hasItem = !!item?.name;
 
   return (
-    <div className="flex flex-col p-2 bg-gray-800 rounded border border-gray-700 min-h-[64px] hover:border-gray-500 transition-colors">
-      <div className="text-xs text-gray-500 mb-1">{SLOT_LABELS[slot] ?? slot}</div>
-      {item?.name ? (
+    <div style={{
+      background: hasItem ? "var(--bg-raised)" : "var(--bg-surface)",
+      border: `1px solid ${hasItem ? "var(--bg-border)" : "var(--bg-divider)"}`,
+      borderRadius: "var(--r-md)",
+      padding: "8px 10px",
+      minHeight: 56,
+      transition: "border-color 0.1s",
+    }}
+    onMouseEnter={(e) => hasItem && ((e.currentTarget as HTMLDivElement).style.borderColor = "var(--accent-dim)")}
+    onMouseLeave={(e) => hasItem && ((e.currentTarget as HTMLDivElement).style.borderColor = "var(--bg-border)")}
+    >
+      {/* Slot label */}
+      <div style={{
+        fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase" as const,
+        fontWeight: 600, color: "var(--fg-faint)", marginBottom: 4,
+      }}>
+        {SLOT_LABELS[slot] ?? slot}
+      </div>
+
+      {hasItem ? (
         <>
-          <div className={`text-xs font-semibold leading-snug ${nameColor} mb-1`}>
-            {item.name}
+          {/* Item name */}
+          <div style={{
+            fontSize: 11, fontWeight: 600, color: nameColor,
+            lineHeight: 1.35, marginBottom: 2,
+          }}>
+            {item!.name}
           </div>
-          {item.baseName && item.baseName !== item.name && (
-            <div className="text-xs text-gray-500 leading-tight mb-1">{item.baseName}</div>
+
+          {/* Base type */}
+          {item!.baseName && item!.baseName !== item!.name && (
+            <div style={{ fontSize: 10, color: "var(--fg-muted)", lineHeight: 1.3, marginBottom: 5 }}>
+              {item!.baseName}
+            </div>
           )}
-          {allMods.length > 0 && (
-            <ul className="mt-0.5 space-y-0.5">
-              {allMods.map((mod, i) => (
-                <li key={i} className="text-xs text-gray-300 leading-tight">{mod}</li>
-              ))}
-            </ul>
+
+          {/* Divider before mods */}
+          {(implicits.length > 0 || explicits.length > 0) && (
+            <div style={{ height: 1, background: "var(--bg-border)", margin: "5px 0" }} />
           )}
+
+          {/* Implicits */}
+          {implicits.map((mod, i) => (
+            <div key={`imp-${i}`} style={{
+              fontSize: 10.5, color: "oklch(0.74 0.08 200)", lineHeight: 1.4,
+            }}>
+              {mod}
+            </div>
+          ))}
+
+          {/* Divider between implicit/explicit */}
+          {implicits.length > 0 && explicits.length > 0 && (
+            <div style={{ height: 1, background: "var(--bg-divider)", margin: "4px 0" }} />
+          )}
+
+          {/* Explicits */}
+          {explicits.map((mod, i) => (
+            <div key={`exp-${i}`} style={{
+              fontSize: 10.5, color: "var(--fg-secondary)", lineHeight: 1.4,
+            }}>
+              {mod}
+            </div>
+          ))}
         </>
       ) : (
-        <div className="text-xs text-gray-600 italic mt-auto">Empty</div>
+        <div style={{ fontSize: 10.5, color: "var(--fg-faint)", fontStyle: "italic" }}>Empty</div>
       )}
     </div>
   );
@@ -93,21 +125,18 @@ export default function GearSlots({ items }: GearSlotsProps) {
   }
 
   return (
-    <div className="flex flex-col gap-2 p-3 bg-gray-900 rounded-lg border border-gray-700">
-      <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Equipment</div>
-      <div className="flex flex-col gap-2">
-        {SLOT_LAYOUT.map((row, ri) => (
-          <div key={ri} className="grid grid-cols-3 gap-2">
-            {row.map((slot, ci) =>
-              slot ? (
-                <SlotCard key={slot} slot={slot} item={slotMap.get(slot)} />
-              ) : (
-                <div key={ci} />
-              )
-            )}
-          </div>
-        ))}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, height: "100%", overflowY: "auto" }}>
+      {GRID_ROWS.map((row, ri) => (
+        <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+          {row.map((slot, ci) =>
+            slot ? (
+              <SlotCard key={slot} slot={slot} item={slotMap.get(slot)} />
+            ) : (
+              <div key={ci} />
+            )
+          )}
+        </div>
+      ))}
     </div>
   );
 }

@@ -7,48 +7,59 @@ interface StatsPanelProps {
   stats: BuildStats | null;
 }
 
-function StatRow({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number | undefined;
-  color?: string;
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 9.5,
+      letterSpacing: "0.1em",
+      textTransform: "uppercase" as const,
+      fontWeight: 600,
+      color: "var(--fg-muted)",
+      marginBottom: 5,
+      marginTop: 12,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function StatRow({ label, value, color, unit }: {
+  label: string; value: number | undefined; color?: string; unit?: string;
 }) {
   if (value === undefined || value === null) return null;
   return (
-    <div className="flex justify-between items-center py-0.5">
-      <span className="text-gray-400 text-sm">{label}</span>
-      <span className={`text-sm font-mono font-semibold ${color ?? "text-white"}`}>
-        {typeof value === "number" && !Number.isInteger(value)
-          ? value.toFixed(1)
-          : value}
+    <div style={{
+      display: "flex", alignItems: "baseline", justifyContent: "space-between",
+      padding: "2.5px 0", borderBottom: "1px solid var(--bg-divider)",
+    }}>
+      <span style={{ fontSize: 11, color: "var(--fg-tertiary)" }}>{label}</span>
+      <span style={{
+        fontFamily: "var(--font-geist-mono, var(--mono))", fontSize: 12, fontWeight: 500,
+        letterSpacing: "-0.02em", color: color ?? "var(--fg-primary)",
+      }}>
+        {typeof value === "number" && !Number.isInteger(value) ? value.toFixed(1) : value.toLocaleString()}
+        {unit && <span style={{ fontSize: 9.5, color: "var(--fg-muted)", marginLeft: 2 }}>{unit}</span>}
       </span>
     </div>
   );
 }
 
-function ResistRow({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number | undefined;
-  color: string;
-}) {
+function ResistRow({ label, value, color }: { label: string; value: number | undefined; color: string }) {
   if (value === undefined) return null;
   const capped = value >= 75;
+  const negated = value < 0;
   return (
-    <div className="flex justify-between items-center py-0.5">
-      <span className={`text-sm ${color}`}>{label}</span>
-      <span
-        className={`text-sm font-mono font-semibold ${
-          value < 0 ? "text-red-400" : capped ? "text-yellow-300" : "text-white"
-        }`}
-      >
-        {value}%{capped ? " ✓" : ""}
+    <div style={{
+      display: "flex", alignItems: "baseline", justifyContent: "space-between",
+      padding: "2.5px 0", borderBottom: "1px solid var(--bg-divider)",
+    }}>
+      <span style={{ fontSize: 11, color }}>{label}</span>
+      <span style={{
+        fontFamily: "var(--font-geist-mono, var(--mono))", fontSize: 12, fontWeight: 500,
+        letterSpacing: "-0.02em",
+        color: negated ? "var(--state-crit-fg)" : capped ? "var(--accent-base)" : "var(--fg-primary)",
+      }}>
+        {value}%{capped && <span style={{ fontSize: 9, marginLeft: 3, color: "var(--accent-dim)" }}>✓</span>}
       </span>
     </div>
   );
@@ -56,54 +67,60 @@ function ResistRow({
 
 export default function StatsPanel({ info, stats }: StatsPanelProps) {
   return (
-    <div className="flex flex-col gap-4 p-4 bg-gray-900 rounded-lg border border-gray-700 min-w-[200px]">
-      {info && (
-        <div className="border-b border-gray-700 pb-3">
-          <div className="text-yellow-400 font-bold text-sm truncate">{info.name}</div>
-          <div className="text-gray-400 text-xs mt-0.5">
-            {info.class}
-            {info.ascendancy && info.ascendancy !== info.class
-              ? ` / ${info.ascendancy}`
-              : ""}
-            {" · "}Lv {info.level}
+    <div style={{
+      display: "flex", flexDirection: "column", height: "100%",
+      padding: "14px 16px", background: "var(--bg-surface)",
+      borderRight: "1px solid var(--bg-divider)", overflowY: "auto",
+      minWidth: 210, flexShrink: 0,
+    }}>
+      {info ? (
+        <div style={{ paddingBottom: 11, borderBottom: "1px solid var(--bg-divider)" }}>
+          <div style={{
+            fontSize: 13, fontWeight: 600, color: "var(--accent-base)",
+            letterSpacing: "-0.01em", lineHeight: 1.3, marginBottom: 3,
+          }}>
+            {info.name || "Unnamed Build"}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--fg-tertiary)" }}>
+            {[info.class, info.ascendancy && info.ascendancy !== info.class ? info.ascendancy : null]
+              .filter(Boolean).join(" / ")}
+            {info.level
+              ? <span style={{ color: "var(--fg-muted)", marginLeft: 6 }}>
+                  Lv <span style={{ fontFamily: "var(--font-geist-mono, var(--mono))" }}>{info.level}</span>
+                </span>
+              : null}
           </div>
         </div>
+      ) : (
+        <div style={{ fontSize: 11, color: "var(--fg-faint)", paddingBottom: 12 }}>No build loaded</div>
       )}
 
-      {stats ? (
+      {stats && (
         <>
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Defences</div>
-            <StatRow label="Life" value={stats.Life} color="text-red-400" />
-            <StatRow label="Energy Shield" value={stats.EnergyShield} color="text-blue-300" />
-            <StatRow label="Mana" value={stats.Mana} color="text-blue-400" />
-            <StatRow label="Evasion" value={stats.Evasion} color="text-green-400" />
-            <StatRow label="Armour" value={stats.Armour} color="text-orange-300" />
-            <StatRow label="Life Regen" value={stats.LifeRegen} color="text-red-300" />
-            <StatRow label="Mana Regen" value={stats.ManaRegen} color="text-blue-300" />
-          </div>
+          <SectionLabel>Defences</SectionLabel>
+          <StatRow label="Life"          value={stats.Life}          color="var(--state-crit-fg)" />
+          <StatRow label="Energy Shield" value={stats.EnergyShield}  color="var(--res-cold)" />
+          <StatRow label="Mana"          value={stats.Mana}          color="oklch(0.72 0.12 260)" />
+          <StatRow label="Evasion"       value={stats.Evasion}       color="var(--state-healthy-fg)" />
+          <StatRow label="Armour"        value={stats.Armour}        color="oklch(0.74 0.12 50)" />
+          <StatRow label="Life Regen"    value={stats.LifeRegen}     color="oklch(0.68 0.12 15)" unit="/s" />
+          <StatRow label="Mana Regen"    value={stats.ManaRegen}     color="oklch(0.68 0.10 260)" unit="/s" />
 
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Resistances</div>
-            <ResistRow label="Fire" value={stats.FireResist} color="text-orange-400" />
-            <ResistRow label="Cold" value={stats.ColdResist} color="text-cyan-400" />
-            <ResistRow label="Lightning" value={stats.LightningResist} color="text-yellow-400" />
-            <ResistRow label="Chaos" value={stats.ChaosResist} color="text-purple-400" />
-          </div>
+          <SectionLabel>Resistances</SectionLabel>
+          <ResistRow label="Fire"      value={stats.FireResist}      color="var(--res-fire)" />
+          <ResistRow label="Cold"      value={stats.ColdResist}      color="var(--res-cold)" />
+          <ResistRow label="Lightning" value={stats.LightningResist} color="var(--res-lightning)" />
+          <ResistRow label="Chaos"     value={stats.ChaosResist}     color="var(--res-chaos)" />
 
           {Object.keys(stats).some((k) => k.toLowerCase().includes("dps")) && (
-            <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">DPS</div>
+            <>
+              <SectionLabel>Damage</SectionLabel>
               {Object.entries(stats)
                 .filter(([k]) => k.toLowerCase().includes("dps"))
-                .map(([k, v]) => (
-                  <StatRow key={k} label={k} value={v} color="text-emerald-400" />
-                ))}
-            </div>
+                .map(([k, v]) => <StatRow key={k} label={k} value={v} color="var(--state-healthy-fg)" />)}
+            </>
           )}
         </>
-      ) : (
-        <div className="text-gray-500 text-sm text-center py-4">No build loaded</div>
       )}
     </div>
   );
