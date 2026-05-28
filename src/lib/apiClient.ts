@@ -12,17 +12,20 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   "https://poe2-engine-production.up.railway.app";
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+async function apiFetch<T>(path: string, options?: RequestInit, retries = 4): Promise<T> {
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers ?? {}),
-    },
+    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
   });
 
   const json = await res.json();
+
+  // Lua engine is single-threaded — retry with backoff if a request raced
+  if (json.error?.includes("Concurrent") && retries > 0) {
+    await new Promise(r => setTimeout(r, 800));
+    return apiFetch<T>(path, options, retries - 1);
+  }
 
   if (!res.ok || json.error) {
     throw new Error(json.error || `API error ${res.status} at ${path}`);
