@@ -16,10 +16,10 @@ const CLASS_NAMES: Record<number, string> = {
 };
 
 const NODE_COLORS = {
-  keystone: { dot: "#f59e0b", glow: "#f59e0b55", dim: "#78350f" },
-  notable:  { dot: "#a78bfa", glow: "#a78bfa44", dim: "#2e1065" },
-  mastery:  { dot: "#60a5fa", glow: "#60a5fa33", dim: "#1e3a5f" },
-  normal:   { dot: "#d97706", glow: "",           dim: "#1f2937" },
+  keystone: { dot: "#fbbf24", glow: "#fbbf2466", dim: "#92400e" },
+  notable:  { dot: "#c4b5fd", glow: "#a78bfa55", dim: "#3b0764" },
+  mastery:  { dot: "#7dd3fc", glow: "#60a5fa44", dim: "#1e3a5f" },
+  normal:   { dot: "#d97706", glow: "",           dim: "#374151" },
 };
 
 const NODE_RADII = { keystone: 6, notable: 4, mastery: 3.5, normal: 2.2 };
@@ -128,7 +128,13 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
     const { x: cx, y: cy, scale: s } = cam.current;
 
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "oklch(0.11 0.004 60)";
+    // Rich dark background with subtle vignette
+    ctx.fillStyle = "oklch(0.10 0.005 60)";
+    ctx.fillRect(0, 0, width, height);
+    const vignette = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, Math.max(width, height) * 0.7);
+    vignette.addColorStop(0, "rgba(255,255,255,0.03)");
+    vignette.addColorStop(1, "rgba(0,0,0,0.4)");
+    ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, width, height);
 
     // Viewport culling bounds (world space) with generous margin for edges
@@ -154,7 +160,7 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         ctx.lineTo(to.x * s + cx, to.y * s + cy);
       }
     }
-    ctx.strokeStyle = "oklch(0.36 0.008 70)";
+    ctx.strokeStyle = "oklch(0.40 0.010 70)";
     ctx.lineWidth = baseEdgeW;
     ctx.stroke();
 
@@ -431,20 +437,33 @@ function FullscreenTree({ tree, positions, onClose }: {
     return () => ro.disconnect();
   }, []);
 
-  // Fetch static connection data and merge into positions
-  // tree-connections.json is pre-generated from tree.json — static game data, never changes
+  // Fetch static connection data, merge, and filter long non-allocated edges
   useEffect(() => {
     fetch("/tree-connections.json")
       .then(r => r.json())
       .then((conns: Record<string, number[]>) => {
-        setEnrichedPositions(
-          positions.map(node => ({
-            ...node,
-            connections: node.connections?.length
-              ? node.connections
-              : (conns[String(node.id)] ?? []),
-          }))
-        );
+        const posMap = new Map(positions.map(n => [n.id, n]));
+
+        setEnrichedPositions(positions.map(node => {
+          const raw: number[] = node.connections?.length
+            ? node.connections
+            : (conns[String(node.id)] ?? []);
+
+          // Keep edges that are either:
+          // a) Part of the allocated path (both endpoints allocated) — always show
+          // b) Short local connections (≤ 2500 world units) — the actual tree web
+          // Long unallocated edges (the "highway" lines) are what make it look terrible
+          const filtered = raw.filter(connId => {
+            const to = posMap.get(connId);
+            if (!to) return false;
+            if (node.allocated && to.allocated) return true; // always show path
+            const dx = to.x - node.x;
+            const dy = to.y - node.y;
+            return dx * dx + dy * dy <= 2500 * 2500;
+          });
+
+          return { ...node, connections: filtered };
+        }));
       })
       .catch(() => setEnrichedPositions(positions));
   }, [positions]);
