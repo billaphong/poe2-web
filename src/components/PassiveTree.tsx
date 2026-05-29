@@ -207,7 +207,10 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         const sx = node.x * s + cx;
         const sy = node.y * s + cy;
         const baseR = NODE_RADII[node.type];
-        const r = Math.max(alloc ? 1.8 : 0.8, baseR * Math.min(s * 0.016, 3.0));
+        // Allocated nodes are much larger — visible without crossing highway edges
+        const r = alloc
+          ? Math.max(3, baseR * Math.min(s * 0.025, 5.0))
+          : Math.max(0.8, baseR * Math.min(s * 0.016, 2.5));
 
         ctx.beginPath();
         ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -217,9 +220,9 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         if (alloc && r > 1) {
           // Dark halo for contrast
           ctx.beginPath();
-          ctx.arc(sx, sy, r + 2.5, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(0,0,0,0.5)";
-          ctx.lineWidth = 2;
+          ctx.arc(sx, sy, r + 3.5, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(0,0,0,0.65)";
+          ctx.lineWidth = 3;
           ctx.stroke();
           // Glow ring
           if (NODE_COLORS[node.type].glow) {
@@ -449,17 +452,14 @@ function FullscreenTree({ tree, positions, onClose }: {
             ? node.connections
             : (conns[String(node.id)] ?? []);
 
-          // Keep edges that are either:
-          // a) Part of the allocated path (both endpoints allocated) — always show
-          // b) Short local connections (≤ 2500 world units) — the actual tree web
-          // Long unallocated edges (the "highway" lines) are what make it look terrible
-          // Threshold scaled to match pobb.in coordinate system (0.753 scale applied server-side)
-          // Raw threshold 2500 → scaled: 2500 * 0.753 ≈ 1882
+          // Only keep short local edges — same threshold for all edges (allocated or not).
+          // Long "highway" edges between distant parts of the tree create jagged lines.
+          // Allocated nodes are still highlighted as bright amber dots without the crossing lines.
+          // Threshold: ≤ 1882 scaled units (= raw 2500 * scale 0.753)
           const EDGE_THRESHOLD_SQ = 1882 * 1882;
           const filtered = raw.filter(connId => {
             const to = posMap.get(connId);
             if (!to) return false;
-            if (node.allocated && to.allocated) return true; // always show allocated path
             const dx = to.x - node.x;
             const dy = to.y - node.y;
             return dx * dx + dy * dy <= EDGE_THRESHOLD_SQ;
