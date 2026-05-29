@@ -537,9 +537,9 @@ function FullscreenTree({ tree, positions, onClose }: {
 function RingSummary({ tree, onExpand, hasPositions }: {
   tree: TreeData; onExpand: () => void; hasPositions: boolean;
 }) {
-  const nodes = tree.nodes as number[];
+  const nodeCount = tree.nodes?.length ?? 0;
   const className = CLASS_NAMES[tree.classId ?? -1] ?? "Unknown";
-  const pct = Math.min(nodes.length / 120, 1);
+  const pct = Math.min(nodeCount / 120, 1);
   const r = 56;
   const circ = 2 * Math.PI * r;
 
@@ -563,7 +563,7 @@ function RingSummary({ tree, onExpand, hasPositions }: {
         />
         <text x={65} y={60} textAnchor="middle" fill="var(--accent-base)"
           fontSize={22} fontWeight="bold" fontFamily="var(--font-geist-mono, monospace)">
-          {nodes.length}
+          {nodeCount}
         </text>
         <text x={65} y={76} textAnchor="middle" fill="var(--fg-muted)" fontSize={9} fontFamily="sans-serif">
           NODES ALLOCATED
@@ -612,7 +612,9 @@ export default function PassiveTree({ tree, positions }: PassiveTreeProps) {
   const [open, setOpen] = useState(false);
 
   const hasPositions = !!positions?.length;
-  const hasTree = !!(tree?.nodes?.length && typeof (tree.nodes as unknown[])[0] === "number");
+  // Handle both old format (number[]) and new format (object[] with {id,x,y})
+  const hasTree = !!tree?.nodes?.length;
+  const allocCount = tree?.nodes?.length ?? 0;
 
   if (!hasTree) {
     return (

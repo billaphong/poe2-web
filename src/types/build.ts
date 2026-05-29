@@ -29,9 +29,17 @@ export interface TreeNode {
   ascendancyName?: string;
 }
 
+export interface LuaTreeNode {
+  id: number;
+  name?: string;
+  type?: string;
+  x?: number;
+  y?: number;
+}
+
 export interface TreeData {
-  // API returns allocated node IDs; full coordinates require extended API
-  nodes: number[] | TreeNode[];
+  // API may return plain IDs (older forks) or objects with coordinates (newer forks)
+  nodes: number[] | LuaTreeNode[];
   classId?: number;
   ascendClassId?: number;
   secondaryAscendClassId?: number;
