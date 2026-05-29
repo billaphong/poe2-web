@@ -265,8 +265,8 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
     fitBox(b.minX, b.maxX, b.minY, b.maxY, pad);
   }, [bounds, fitBox]);
 
-  // Fit to build path on first render
-  useEffect(() => { fitToAllocated(); }, [fitToAllocated]);
+  // Open to full tree view (like pobb.in) — user can zoom in to see their path
+  useEffect(() => { fitToView(); }, [fitToView]);
 
   // Re-draw on resize without resetting zoom
   useEffect(() => { draw(); }, [width, height, draw]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -453,13 +453,16 @@ function FullscreenTree({ tree, positions, onClose }: {
           // a) Part of the allocated path (both endpoints allocated) — always show
           // b) Short local connections (≤ 2500 world units) — the actual tree web
           // Long unallocated edges (the "highway" lines) are what make it look terrible
+          // Threshold scaled to match pobb.in coordinate system (0.753 scale applied server-side)
+          // Raw threshold 2500 → scaled: 2500 * 0.753 ≈ 1882
+          const EDGE_THRESHOLD_SQ = 1882 * 1882;
           const filtered = raw.filter(connId => {
             const to = posMap.get(connId);
             if (!to) return false;
-            if (node.allocated && to.allocated) return true; // always show path
+            if (node.allocated && to.allocated) return true; // always show allocated path
             const dx = to.x - node.x;
             const dy = to.y - node.y;
-            return dx * dx + dy * dy <= 2500 * 2500;
+            return dx * dx + dy * dy <= EDGE_THRESHOLD_SQ;
           });
 
           return { ...node, connections: filtered };
