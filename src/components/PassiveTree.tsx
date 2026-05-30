@@ -142,8 +142,8 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
     const vMinX = (-cx / s) - margin, vMaxX = ((width - cx) / s) + margin;
     const vMinY = (-cy / s) - margin, vMaxY = ((height - cy) / s) + margin;
 
-    // Scale-dependent line widths
-    const baseEdgeW = Math.max(0.5, Math.min(s * 0.003, 2));
+    // Scale-dependent line widths — min 0.8 so edges are visible at full-tree zoom
+    const baseEdgeW = Math.max(0.8, Math.min(s * 0.004, 2));
     const allocEdgeW = Math.max(1.5, Math.min(s * 0.008, 5));
 
     // ── Unallocated edges ─────────────────────────────────────────
@@ -160,7 +160,7 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         ctx.lineTo(to.x * s + cx, to.y * s + cy);
       }
     }
-    ctx.strokeStyle = "oklch(0.40 0.010 70)";
+    ctx.strokeStyle = "oklch(0.50 0.012 70)";
     ctx.lineWidth = baseEdgeW;
     ctx.stroke();
 
@@ -207,10 +207,11 @@ function TreeCanvas({ positions, width, height, classId, treeVersion, onClose }:
         const sx = node.x * s + cx;
         const sy = node.y * s + cy;
         const baseR = NODE_RADII[node.type];
-        // Allocated nodes are much larger — visible without crossing highway edges
+        // Unallocated nodes: min 1.5px so web is dense at full-tree zoom
+        // Allocated nodes: min 3px so they pop against the web
         const r = alloc
           ? Math.max(3, baseR * Math.min(s * 0.025, 5.0))
-          : Math.max(0.8, baseR * Math.min(s * 0.016, 2.5));
+          : Math.max(1.5, baseR * Math.min(s * 0.020, 3.0));
 
         ctx.beginPath();
         ctx.arc(sx, sy, r, 0, Math.PI * 2);
